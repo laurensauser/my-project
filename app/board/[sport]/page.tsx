@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: PageProps) {
     .single()
 
   return {
-    title: data ? `${data.name} — Influencer Board` : 'Influencer Board',
+    title: data ? `${data.name} — Creator Content` : 'Creator Content',
   }
 }
 
@@ -46,7 +46,7 @@ export default async function SportBoardPage({ params }: PageProps) {
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-xl font-bold text-white tracking-tight">
-              🎬 Influencer Board
+              🎬 Creator Content
             </h1>
             <a
               href="/admin"

@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Influencer Board',
+  title: 'Creator Content',
   description: 'Curated TikTok influencer videos by sport',
 }
 

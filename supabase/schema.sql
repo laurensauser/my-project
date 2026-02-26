@@ -1,5 +1,5 @@
 -- ============================================================
--- TikTok Influencer Board — Supabase Schema
+-- TikTok Creator Content — Supabase Schema
 -- Run this in your Supabase SQL Editor
 -- ============================================================
 

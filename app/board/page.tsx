@@ -21,7 +21,7 @@ export default async function BoardPage() {
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-xl font-bold text-white tracking-tight">
-              🎬 Influencer Board
+              🎬 Creator Content
             </h1>
             <a
               href="/admin"

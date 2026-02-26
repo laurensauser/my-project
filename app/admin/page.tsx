@@ -43,7 +43,7 @@ export default function AdminLoginPage() {
         <div className="text-center mb-8">
           <div className="text-4xl mb-3">🎬</div>
           <h1 className="text-2xl font-bold text-white">Admin Login</h1>
-          <p className="text-gray-500 text-sm mt-1">Influencer Board</p>
+          <p className="text-gray-500 text-sm mt-1">Creator Content</p>
         </div>
 
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
