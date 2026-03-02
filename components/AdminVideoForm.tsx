@@ -6,7 +6,7 @@ import type { Video, Sport } from '@/lib/types'
 interface AdminVideoFormProps {
   sports: Sport[]
   video?: Video | null
-  onSuccess: (video: Video) => void
+  onSuccess: () => void
   onClose: () => void
 }
 
@@ -21,11 +21,14 @@ export default function AdminVideoForm({
   const [formData, setFormData] = useState({
     tiktok_url: video?.tiktok_url ?? '',
     caption: video?.caption ?? '',
-    sport_name: video?.sport_name ?? '',
-    sport_slug: video?.sport_slug ?? '',
     plays: video?.plays?.toString() ?? '0',
     notes: video?.notes ?? '',
+    exclude_from_newest: video?.exclude_from_newest ?? false,
   })
+
+  const [selectedSportIds, setSelectedSportIds] = useState<string[]>(
+    video?.sports?.map((s) => s.id) ?? []
+  )
 
   const [localSports, setLocalSports] = useState<Sport[]>(sports)
   const [showNewSport, setShowNewSport] = useState(false)
@@ -37,23 +40,10 @@ export default function AdminVideoForm({
   const set = (field: string, value: string) =>
     setFormData((prev) => ({ ...prev, [field]: value }))
 
-  const handleSportChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value
-    if (value === '__new__') {
-      setShowNewSport(true)
-      set('sport_slug', '')
-      set('sport_name', '')
-    } else {
-      setShowNewSport(false)
-      const sport = localSports.find((s) => s.slug === value)
-      if (sport) {
-        set('sport_slug', sport.slug)
-        set('sport_name', sport.name)
-      } else {
-        set('sport_slug', '')
-        set('sport_name', '')
-      }
-    }
+  const toggleSport = (id: string) => {
+    setSelectedSportIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    )
   }
 
   const handleCreateSport = async () => {
@@ -74,8 +64,7 @@ export default function AdminVideoForm({
       setLocalSports((prev) =>
         [...prev, sport].sort((a, b) => a.name.localeCompare(b.name))
       )
-      set('sport_name', sport.name)
-      set('sport_slug', sport.slug)
+      setSelectedSportIds((prev) => [...prev, sport.id])
       setShowNewSport(false)
       setNewSportName('')
     } catch (e) {
@@ -87,8 +76,8 @@ export default function AdminVideoForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!formData.sport_slug) {
-      setError('Please select or create a sport')
+    if (selectedSportIds.length === 0) {
+      setError('Please select at least one sport')
       return
     }
     setLoading(true)
@@ -103,6 +92,7 @@ export default function AdminVideoForm({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
+          sport_ids: selectedSportIds,
           plays: parseInt(formData.plays) || 0,
         }),
       })
@@ -112,8 +102,7 @@ export default function AdminVideoForm({
         throw new Error(err.error ?? 'Failed to save video')
       }
 
-      const saved: Video = await res.json()
-      onSuccess(saved)
+      onSuccess()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong')
     } finally {
@@ -176,27 +165,32 @@ export default function AdminVideoForm({
             />
           </div>
 
-          {/* Sport */}
+          {/* Sports — checkboxes */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">
-              Sport <span className="text-red-400">*</span>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Sports <span className="text-red-400">*</span>
             </label>
-            <select
-              value={showNewSport ? '__new__' : formData.sport_slug}
-              onChange={handleSportChange}
-              className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-white text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition"
-            >
-              <option value="">Select a sport...</option>
+            <div className="space-y-2">
               {localSports.map((sport) => (
-                <option key={sport.slug} value={sport.slug}>
-                  {sport.name}
-                </option>
+                <label
+                  key={sport.id}
+                  className="flex items-center gap-3 px-3 py-2 rounded-xl bg-gray-800 hover:bg-gray-750 cursor-pointer group"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedSportIds.includes(sport.id)}
+                    onChange={() => toggleSport(sport.id)}
+                    className="w-4 h-4 rounded accent-purple-500 cursor-pointer"
+                  />
+                  <span className="text-sm text-gray-200 group-hover:text-white transition-colors">
+                    {sport.name}
+                  </span>
+                </label>
               ))}
-              <option value="__new__">+ Add new sport...</option>
-            </select>
+            </div>
 
-            {showNewSport && (
-              <div className="flex gap-2 mt-2">
+            {showNewSport ? (
+              <div className="flex gap-2 mt-3">
                 <input
                   type="text"
                   value={newSportName}
@@ -222,6 +216,17 @@ export default function AdminVideoForm({
                   ✕
                 </button>
               </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowNewSport(true)}
+                className="mt-2 text-sm text-purple-400 hover:text-purple-300 transition flex items-center gap-1.5"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Add new sport
+              </button>
             )}
           </div>
 
@@ -253,6 +258,26 @@ export default function AdminVideoForm({
               className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition resize-none"
             />
           </div>
+
+          {/* Exclude from Newest */}
+          <label className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-gray-800 cursor-pointer group">
+            <input
+              type="checkbox"
+              checked={formData.exclude_from_newest}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, exclude_from_newest: e.target.checked }))
+              }
+              className="w-4 h-4 rounded accent-purple-500 cursor-pointer"
+            />
+            <div>
+              <span className="text-sm text-gray-200 group-hover:text-white transition-colors">
+                Exclude from Newest tab
+              </span>
+              <p className="text-xs text-gray-500 mt-0.5">
+                This video won&apos;t appear on the public Newest tab
+              </p>
+            </div>
+          </label>
 
           {error && (
             <div className="bg-red-950/50 border border-red-800 rounded-xl p-3 text-red-400 text-sm">

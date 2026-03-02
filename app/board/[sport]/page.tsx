@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import SportFilter from '@/components/SportFilter'
 import VideoGrid from '@/components/VideoGrid'
-import type { Video, Sport } from '@/lib/types'
+import type { Sport } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,18 +26,36 @@ export async function generateMetadata({ params }: PageProps) {
 export default async function SportBoardPage({ params }: PageProps) {
   const { sport: sportSlug } = await params
 
-  const [{ data: sportData }, { data: videos }, { data: sports }] =
-    await Promise.all([
-      supabase.from('sports').select('*').eq('slug', sportSlug).single(),
-      supabase
-        .from('videos')
-        .select('*')
-        .eq('sport_slug', sportSlug)
-        .order('created_at', { ascending: false }),
-      supabase.from('sports').select('*').order('name'),
-    ])
+  const [{ data: sportData }, { data: activeSports }, { data: vsData }] = await Promise.all([
+    supabase.from('sports').select('*').eq('slug', sportSlug).single(),
+    supabase.from('sports').select('*').eq('active', true).order('name'),
+    supabase
+      .from('video_sports')
+      .select('video_id, sports!inner(id)')
+      .eq('sports.slug', sportSlug),
+  ])
 
   if (!sportData) notFound()
+
+  const videoIds = (vsData ?? []).map((vs: { video_id: string }) => vs.video_id)
+
+  let videos: ReturnType<typeof Object.assign>[] = []
+
+  if (videoIds.length > 0) {
+    const { data: rawVideos } = await supabase
+      .from('videos')
+      .select('*, video_sports(sports(id, name, slug, active, description))')
+      .in('id', videoIds)
+      .order('created_at', { ascending: false })
+
+    videos = (rawVideos ?? []).map((v) => ({
+      ...v,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      sports: (v.video_sports ?? []).map((vs: any) => vs.sports).filter(Boolean),
+    }))
+  }
+
+  const sport = sportData as Sport
 
   return (
     <div className="min-h-screen bg-gray-950">
@@ -56,7 +74,7 @@ export default async function SportBoardPage({ params }: PageProps) {
             </a>
           </div>
           <SportFilter
-            sports={(sports as Sport[]) ?? []}
+            sports={(activeSports as Sport[]) ?? []}
             activeSport={sportSlug}
           />
         </div>
@@ -64,14 +82,15 @@ export default async function SportBoardPage({ params }: PageProps) {
 
       <main className="max-w-7xl mx-auto px-4 py-6">
         <div className="mb-6">
-          <h2 className="text-2xl font-bold text-white">
-            {(sportData as Sport).name}
-          </h2>
+          <h2 className="text-2xl font-bold text-white">{sport.name}</h2>
+          {sport.description && (
+            <p className="text-base text-gray-300 mt-1">{sport.description}</p>
+          )}
           <p className="text-sm text-gray-500 mt-1">
-            {videos?.length ?? 0} video{(videos?.length ?? 0) !== 1 ? 's' : ''}
+            {videos.length} video{videos.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <VideoGrid videos={(videos as Video[]) ?? []} />
+        <VideoGrid videos={videos} />
       </main>
     </div>
   )

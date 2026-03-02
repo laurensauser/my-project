@@ -32,16 +32,32 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
   try {
     const body = await request.json()
-    const { caption, sport_name, sport_slug, notes } = body
+    const { caption, sport_ids, notes, exclude_from_newest } = body
     const plays = parseInt(body.plays) || 0
+
+    if (!sport_ids?.length) {
+      return NextResponse.json({ error: 'At least one sport is required' }, { status: 400 })
+    }
+
+    const { data: sportsData, error: sportsErr } = await supabaseAdmin
+      .from('sports')
+      .select('id, name, slug, active, description, created_at')
+      .in('id', sport_ids)
+
+    if (sportsErr || !sportsData?.length) {
+      return NextResponse.json({ error: 'Invalid sport selection' }, { status: 400 })
+    }
+
+    const firstSport = sportsData[0]
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const updates: Record<string, any> = {
       caption: caption ?? '',
-      sport_name,
-      sport_slug,
+      sport_name: firstSport.name,
+      sport_slug: firstSport.slug,
       plays,
       notes: notes ?? '',
+      exclude_from_newest: !!exclude_from_newest,
     }
 
     if (body.tiktok_url) {
@@ -57,22 +73,31 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       updates.tiktok_id = tiktok_id
     }
 
-    const { data, error } = await supabaseAdmin
+    const { data: updatedVideo, error: updateErr } = await supabaseAdmin
       .from('videos')
       .update(updates)
       .eq('id', id)
       .select()
       .single()
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
 
-    return NextResponse.json(data)
+    await supabaseAdmin.from('video_sports').delete().eq('video_id', id)
+
+    const { error: vsErr } = await supabaseAdmin
+      .from('video_sports')
+      .insert(sport_ids.map((sport_id: string) => ({ video_id: id, sport_id })))
+
+    if (vsErr) return NextResponse.json({ error: vsErr.message }, { status: 500 })
+
+    return NextResponse.json({ ...updatedVideo, sports: sportsData })
   } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }
 
 // DELETE /api/videos/:id — admin only
+// video_sports rows are deleted automatically via ON DELETE CASCADE
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   if (!(await requireAdmin(request))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

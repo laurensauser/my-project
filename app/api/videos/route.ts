@@ -3,6 +3,7 @@ import { jwtVerify } from 'jose'
 import { supabase } from '@/lib/supabase'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { extractTikTokVideoId, resolveTikTokUrl } from '@/lib/tiktok'
+import type { Sport } from '@/lib/types'
 
 function getSecret() {
   return new TextEncoder().encode(process.env.JWT_SECRET!)
@@ -19,22 +20,53 @@ async function requireAdmin(request: NextRequest): Promise<boolean> {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function attachSports(raw: any) {
+  const { video_sports, ...rest } = raw
+  return {
+    ...rest,
+    sports: (video_sports ?? [])
+      .map((vs: { sports: Sport | null }) => vs.sports)
+      .filter(Boolean),
+  }
+}
+
 // GET /api/videos — public, optionally filtered by ?sport=slug
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const sport = searchParams.get('sport')
+  const sportSlug = searchParams.get('sport')
+
+  let videoIds: string[] | null = null
+
+  if (sportSlug) {
+    const { data: sportData } = await supabase
+      .from('sports')
+      .select('id')
+      .eq('slug', sportSlug)
+      .single()
+
+    if (!sportData) return NextResponse.json([])
+
+    const { data: vsData } = await supabase
+      .from('video_sports')
+      .select('video_id')
+      .eq('sport_id', sportData.id)
+
+    videoIds = (vsData ?? []).map((vs: { video_id: string }) => vs.video_id)
+    if (videoIds.length === 0) return NextResponse.json([])
+  }
 
   let query = supabase
     .from('videos')
-    .select('*')
+    .select('*, video_sports(sports(id, name, slug, active, description))')
     .order('created_at', { ascending: false })
 
-  if (sport) query = query.eq('sport_slug', sport)
+  if (videoIds) query = query.in('id', videoIds)
 
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json(data)
+  return NextResponse.json((data ?? []).map(attachSports))
 }
 
 // POST /api/videos — admin only
@@ -45,10 +77,10 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { sport_name, sport_slug, notes } = body
+    const { sport_ids, notes, caption, exclude_from_newest } = body
     const plays = parseInt(body.plays) || 0
 
-    if (!body.tiktok_url || !sport_name || !sport_slug) {
+    if (!body.tiktok_url || !sport_ids?.length) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
@@ -65,25 +97,41 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const caption = body.caption || ''
+    const { data: sportsData, error: sportsErr } = await supabaseAdmin
+      .from('sports')
+      .select('id, name, slug, active, description, created_at')
+      .in('id', sport_ids)
 
-    const { data, error } = await supabaseAdmin
+    if (sportsErr || !sportsData?.length) {
+      return NextResponse.json({ error: 'Invalid sport selection' }, { status: 400 })
+    }
+
+    const firstSport = sportsData[0]
+
+    const { data: newVideo, error: insertErr } = await supabaseAdmin
       .from('videos')
       .insert({
         tiktok_url: resolvedUrl,
         tiktok_id,
-        caption,
-        sport_name,
-        sport_slug,
+        caption: caption ?? '',
+        sport_name: firstSport.name,
+        sport_slug: firstSport.slug,
         plays,
         notes: notes ?? '',
+        exclude_from_newest: !!exclude_from_newest,
       })
       .select()
       .single()
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 })
 
-    return NextResponse.json(data, { status: 201 })
+    const { error: vsErr } = await supabaseAdmin
+      .from('video_sports')
+      .insert(sport_ids.map((sport_id: string) => ({ video_id: newVideo.id, sport_id })))
+
+    if (vsErr) return NextResponse.json({ error: vsErr.message }, { status: 500 })
+
+    return NextResponse.json({ ...newVideo, sports: sportsData }, { status: 201 })
   } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }

@@ -53,12 +53,21 @@ export default function VideoCard({ video, adminControls }: VideoCardProps) {
           <p className="text-sm text-white leading-snug">{video.caption}</p>
         )}
 
-        <div className="flex items-center justify-between gap-2">
-          <span className="shrink-0 text-xs bg-purple-600/20 text-purple-300 border border-purple-600/30 px-2 py-0.5 rounded-full">
-            {video.sport_name}
-          </span>
+        <div className="flex items-start justify-between gap-2">
+          {video.sports?.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {video.sports.map((sport) => (
+                <span
+                  key={sport.id}
+                  className="text-xs bg-purple-600/20 text-purple-300 border border-purple-600/30 px-2 py-0.5 rounded-full"
+                >
+                  {sport.name}
+                </span>
+              ))}
+            </div>
+          )}
           {video.plays > 0 && (
-            <span className="text-xs text-gray-500 flex items-center gap-1">
+            <span className="shrink-0 text-xs text-gray-500 flex items-center gap-1">
               <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                 <path
                   fillRule="evenodd"

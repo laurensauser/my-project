@@ -5,13 +5,15 @@ import type { Sport } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
-export default async function BoardPage() {
+export default async function NewestPage() {
   const [{ data: rawVideos }, { data: sports }] = await Promise.all([
     supabase
       .from('videos')
-      .select('*, video_sports(sports(id, name, slug, active))')
-      .order('created_at', { ascending: false }),
-    supabase.from('sports').select('*').order('name'),
+      .select('*, video_sports(sports(id, name, slug, active, description))')
+      .eq('exclude_from_newest', false)
+      .order('created_at', { ascending: false })
+      .limit(10),
+    supabase.from('sports').select('*').eq('active', true).order('name'),
   ])
 
   const videos = (rawVideos ?? []).map((v) => ({
@@ -19,9 +21,6 @@ export default async function BoardPage() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     sports: (v.video_sports ?? []).map((vs: any) => vs.sports).filter(Boolean),
   }))
-
-  const allSports = (sports as Sport[]) ?? []
-  const activeSports = allSports.filter((s) => s.active)
 
   return (
     <div className="min-h-screen bg-gray-950">
@@ -39,11 +38,15 @@ export default async function BoardPage() {
               Admin
             </a>
           </div>
-          <SportFilter sports={activeSports} activeSport={null} />
+          <SportFilter sports={(sports as Sport[]) ?? []} activeSport="newest" />
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6">
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold text-white">Newest</h2>
+          <p className="text-sm text-gray-500 mt-1">The 10 most recently added videos</p>
+        </div>
         <VideoGrid videos={videos} />
       </main>
     </div>
