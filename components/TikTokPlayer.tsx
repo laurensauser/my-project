@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useEffect, useImperativeHandle, forwardRef } from 'react'
+import { useRef, useImperativeHandle, forwardRef, useCallback } from 'react'
 
 export interface TikTokPlayerHandle {
   replay: () => void
@@ -16,46 +16,16 @@ const TikTokPlayer = forwardRef<TikTokPlayerHandle, TikTokPlayerProps>(
     const iframeRef = useRef<HTMLIFrameElement>(null)
     const src = `https://www.tiktok.com/embed/v2/${videoId}?loop=1&rel=0&hideCaption=1`
 
-    // Expose replay() so VideoCard can call it directly without a key remount.
-    // Wiping then restoring src is instant — no React re-render overhead.
-    useImperativeHandle(ref, () => ({
-      replay() {
-        const iframe = iframeRef.current
-        if (!iframe) return
-        iframe.src = ''
-        requestAnimationFrame(() => {
-          if (iframe) iframe.src = src
-        })
-      },
-    }), [src])
-
-    // Fallback: listen for postMessage end events from TikTok's player
-    useEffect(() => {
+    const replay = useCallback(() => {
       const iframe = iframeRef.current
-
-      const handleMessage = (event: MessageEvent) => {
-        if (!iframe || event.source !== iframe.contentWindow) return
-        const data = event.data
-        if (!data || typeof data !== 'object') return
-
-        const ended =
-          data.event === 'ended' ||
-          data.type === 'ended' ||
-          data.status === 'ended' ||
-          data.eventName === 'onPlaybackComplete' ||
-          data.eventName === 'tiktok_player_ended' ||
-          (data.type === 'PLAYER_EVENT' && data.event === 'ended') ||
-          (data.type === 'onStateChange' && data.state === 'ended')
-
-        if (ended) {
-          iframe.src = ''
-          requestAnimationFrame(() => { if (iframe) iframe.src = src })
-        }
-      }
-
-      window.addEventListener('message', handleMessage)
-      return () => window.removeEventListener('message', handleMessage)
+      if (!iframe) return
+      iframe.src = ''
+      requestAnimationFrame(() => {
+        if (iframe) iframe.src = src
+      })
     }, [src])
+
+    useImperativeHandle(ref, () => ({ replay }), [replay])
 
     return (
       <div className="relative w-full" style={{ aspectRatio: '9/16' }}>
@@ -69,6 +39,11 @@ const TikTokPlayer = forwardRef<TikTokPlayerHandle, TikTokPlayerProps>(
           scrolling="no"
           style={{ border: 'none', overflow: 'hidden' }}
           title={caption || 'TikTok video'}
+        />
+        {/* Transparent overlay — blocks related video clicks, restarts on click */}
+        <div
+          className="absolute inset-0 cursor-pointer"
+          onClick={replay}
         />
       </div>
     )
