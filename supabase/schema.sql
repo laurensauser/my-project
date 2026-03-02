@@ -51,5 +51,6 @@ CREATE POLICY "Public read videos" ON videos FOR SELECT USING (true);
 INSERT INTO sports (name, slug) VALUES
   ('Baseball', 'baseball'),
   ('Hockey', 'hockey'),
-  ('Golf', 'golf')
+  ('Golf', 'golf'),
+  ('Moms', 'moms')
 ON CONFLICT (slug) DO NOTHING;
