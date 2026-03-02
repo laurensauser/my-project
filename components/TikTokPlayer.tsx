@@ -40,11 +40,6 @@ const TikTokPlayer = forwardRef<TikTokPlayerHandle, TikTokPlayerProps>(
           style={{ border: 'none', overflow: 'hidden' }}
           title={caption || 'TikTok video'}
         />
-        {/* Transparent overlay — blocks related video clicks, restarts on click */}
-        <div
-          className="absolute inset-0 cursor-pointer"
-          onClick={replay}
-        />
       </div>
     )
   }
