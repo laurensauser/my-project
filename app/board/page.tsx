@@ -9,7 +9,7 @@ export default async function BoardPage() {
   const [{ data: rawVideos }, { data: sports }] = await Promise.all([
     supabase
       .from('videos')
-      .select('*, video_sports(sports(id, name, slug, active))')
+      .select('*, video_sports(display_order, sports(id, name, slug, active, description))')
       .order('created_at', { ascending: false }),
     supabase.from('sports').select('*').order('name'),
   ])
@@ -18,6 +18,8 @@ export default async function BoardPage() {
     ...v,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     sports: (v.video_sports ?? []).map((vs: any) => vs.sports).filter(Boolean),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    sport_orders: Object.fromEntries((v.video_sports ?? []).filter((vs: any) => vs.sports?.id).map((vs: any) => [vs.sports.id, vs.display_order ?? null])),
   }))
 
   const allSports = (sports as Sport[]) ?? []

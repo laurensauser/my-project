@@ -44,15 +44,29 @@ export default async function SportBoardPage({ params }: PageProps) {
   if (videoIds.length > 0) {
     const { data: rawVideos } = await supabase
       .from('videos')
-      .select('*, video_sports(sports(id, name, slug, active, description))')
+      .select('*, video_sports(display_order, sports(id, name, slug, active, description))')
       .in('id', videoIds)
       .order('created_at', { ascending: false })
 
-    videos = (rawVideos ?? []).map((v) => ({
-      ...v,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      sports: (v.video_sports ?? []).map((vs: any) => vs.sports).filter(Boolean),
-    }))
+    const sportId = (sportData as Sport).id
+    videos = (rawVideos ?? [])
+      .map((v) => ({
+        ...v,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        sports: (v.video_sports ?? []).map((vs: any) => vs.sports).filter(Boolean),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        sport_orders: Object.fromEntries((v.video_sports ?? []).filter((vs: any) => vs.sports?.id).map((vs: any) => [vs.sports.id, vs.display_order ?? null])),
+      }))
+      .sort((a, b) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const aOrder = (a as any).sport_orders?.[sportId] ?? null
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const bOrder = (b as any).sport_orders?.[sportId] ?? null
+        if (aOrder !== null && bOrder !== null) return aOrder - bOrder
+        if (aOrder !== null) return -1
+        if (bOrder !== null) return 1
+        return 0
+      })
   }
 
   const sport = sportData as Sport

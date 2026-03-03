@@ -113,10 +113,10 @@ export default function AdminDashboard() {
       await fetch(`/api/videos/${videoId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newest_order: order }),
+        body: JSON.stringify({ featured_order: order }),
       })
       setVideos((prev) =>
-        prev.map((v) => (v.id !== videoId ? v : { ...v, newest_order: order }))
+        prev.map((v) => (v.id !== videoId ? v : { ...v, featured_order: order }))
       )
     }
   }
@@ -148,16 +148,16 @@ export default function AdminDashboard() {
   }
 
   const activeSportObj =
-    activeSport && activeSport !== 'newest'
+    activeSport && activeSport !== 'featured'
       ? sports.find((s) => s.slug === activeSport) ?? null
       : null
 
   const filteredVideos = (() => {
-    if (activeSport === 'newest') {
-      const list = videos.filter((v) => !v.exclude_from_newest)
+    if (activeSport === 'featured') {
+      const list = videos.filter((v) => v.include_in_featured)
       return [...list].sort((a, b) => {
-        const aOrder = a.newest_order ?? null
-        const bOrder = b.newest_order ?? null
+        const aOrder = a.featured_order ?? null
+        const bOrder = b.featured_order ?? null
         if (aOrder !== null && bOrder !== null) return aOrder - bOrder
         if (aOrder !== null) return -1
         if (bOrder !== null) return 1
@@ -232,14 +232,14 @@ export default function AdminDashboard() {
               All
             </button>
             <button
-              onClick={() => setActiveSport('newest')}
+              onClick={() => setActiveSport('featured')}
               className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                activeSport === 'newest'
+                activeSport === 'featured'
                   ? 'bg-purple-600 text-white'
                   : 'bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white'
               }`}
             >
-              Newest
+              Featured
             </button>
             {sports.map((sport) => (
               <button
@@ -270,14 +270,14 @@ export default function AdminDashboard() {
               videos={filteredVideos}
               adminControls={(video) => (
                 <div className="flex flex-col gap-2">
-                  {activeSport === 'newest' && (
+                  {activeSport === 'featured' && (
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-gray-500 shrink-0">Order</span>
                       <input
-                        key={`${video.id}-newest`}
+                        key={`${video.id}-featured`}
                         type="number"
                         min="1"
-                        defaultValue={video.newest_order ?? ''}
+                        defaultValue={video.featured_order ?? ''}
                         placeholder="—"
                         onBlur={(e) => handleUpdateOrder(video.id, null, e.target.value)}
                         className="w-16 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs text-white text-center focus:outline-none focus:border-purple-500 transition [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
@@ -327,7 +327,7 @@ export default function AdminDashboard() {
                 <div className="py-4 first:pt-0 space-y-2">
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <span className="text-sm font-medium text-white">Newest</span>
+                      <span className="text-sm font-medium text-white">Featured</span>
                       <span className="ml-2 text-xs text-gray-500">Always visible</span>
                     </div>
                   </div>
@@ -336,7 +336,7 @@ export default function AdminDashboard() {
                     value={newestDescription}
                     onChange={(e) => setNewestDescription(e.target.value)}
                     onBlur={(e) => handleSaveNewestDescription(e.target.value)}
-                    placeholder="Short description shown on the Newest tab (optional)"
+                    placeholder="Short description shown on the Featured tab (optional)"
                     className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition"
                   />
                 </div>

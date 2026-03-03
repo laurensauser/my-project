@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { sport_ids, notes, caption, exclude_from_newest } = body
+    const { sport_ids, notes, caption, include_in_featured } = body
     const plays = parseInt(body.plays) || 0
 
     if (!body.tiktok_url || !sport_ids?.length) {
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
         sport_slug: firstSport.slug,
         plays,
         notes: notes ?? '',
-        exclude_from_newest: !!exclude_from_newest,
+        include_in_featured: !!include_in_featured,
       })
       .select()
       .single()

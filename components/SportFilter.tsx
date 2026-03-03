@@ -16,8 +16,8 @@ export default function SportFilter({ sports, activeSport }: SportFilterProps) {
 
   return (
     <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
-      <Link href="/board/newest" className={tabClass(activeSport === 'newest')}>
-        Newest
+      <Link href="/board/featured" className={tabClass(activeSport === 'featured')}>
+        Featured
       </Link>
 
       <Link href="/board" className={tabClass(!activeSport)}>

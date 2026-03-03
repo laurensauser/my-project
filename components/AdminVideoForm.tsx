@@ -23,7 +23,7 @@ export default function AdminVideoForm({
     caption: video?.caption ?? '',
     plays: video?.plays?.toString() ?? '0',
     notes: video?.notes ?? '',
-    exclude_from_newest: video?.exclude_from_newest ?? false,
+    include_in_featured: video?.include_in_featured ?? false,
   })
 
   const [selectedSportIds, setSelectedSportIds] = useState<string[]>(
@@ -259,22 +259,22 @@ export default function AdminVideoForm({
             />
           </div>
 
-          {/* Exclude from Newest */}
+          {/* Add to Featured */}
           <label className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-gray-800 cursor-pointer group">
             <input
               type="checkbox"
-              checked={formData.exclude_from_newest}
+              checked={formData.include_in_featured}
               onChange={(e) =>
-                setFormData((prev) => ({ ...prev, exclude_from_newest: e.target.checked }))
+                setFormData((prev) => ({ ...prev, include_in_featured: e.target.checked }))
               }
               className="w-4 h-4 rounded accent-purple-500 cursor-pointer"
             />
             <div>
               <span className="text-sm text-gray-200 group-hover:text-white transition-colors">
-                Exclude from Newest tab
+                Add to Featured page
               </span>
               <p className="text-xs text-gray-500 mt-0.5">
-                This video won&apos;t appear on the public Newest tab
+                This video will appear on the public Featured tab
               </p>
             </div>
           </label>

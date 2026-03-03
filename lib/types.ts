@@ -14,8 +14,8 @@ export interface Video {
   caption: string
   sports: Sport[]
   sport_orders: Record<string, number | null>
-  newest_order: number | null
-  exclude_from_newest: boolean
+  featured_order: number | null
+  include_in_featured: boolean
   plays: number
   notes: string
   created_at: string

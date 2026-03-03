@@ -5,15 +5,14 @@ import type { Sport } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
-export default async function NewestPage() {
+export default async function FeaturedPage() {
   const [{ data: rawVideos }, { data: sports }, { data: settings }] = await Promise.all([
     supabase
       .from('videos')
       .select('*, video_sports(display_order, sports(id, name, slug, active, description))')
-      .eq('exclude_from_newest', false)
-      .order('newest_order', { ascending: true, nullsFirst: false })
-      .order('created_at', { ascending: false })
-      .limit(10),
+      .eq('include_in_featured', true)
+      .order('featured_order', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: false }),
     supabase.from('sports').select('*').eq('active', true).order('name'),
     supabase.from('site_settings').select('newest_description').single(),
   ])
@@ -44,13 +43,13 @@ export default async function NewestPage() {
               Admin
             </a>
           </div>
-          <SportFilter sports={(sports as Sport[]) ?? []} activeSport="newest" />
+          <SportFilter sports={(sports as Sport[]) ?? []} activeSport="featured" />
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6">
         <div className="mb-6">
-          <h2 className="text-2xl font-bold text-white">Newest</h2>
+          <h2 className="text-2xl font-bold text-white">Featured</h2>
           {description && (
             <p className="text-base text-gray-300 mt-1">{description}</p>
           )}

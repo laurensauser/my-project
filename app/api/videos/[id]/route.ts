@@ -52,10 +52,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     } else {
-      // Update newest_order on the video row
+      // Update featured_order on the video row
       const { error } = await supabaseAdmin
         .from('videos')
-        .update({ newest_order: parseOrder(body.newest_order) })
+        .update({ featured_order: parseOrder(body.featured_order) })
         .eq('id', id)
 
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -77,7 +77,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
   try {
     const body = await request.json()
-    const { caption, sport_ids, notes, exclude_from_newest } = body
+    const { caption, sport_ids, notes, include_in_featured } = body
     const plays = parseInt(body.plays) || 0
 
     if (!sport_ids?.length) {
@@ -102,7 +102,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       sport_slug: firstSport.slug,
       plays,
       notes: notes ?? '',
-      exclude_from_newest: !!exclude_from_newest,
+      include_in_featured: !!include_in_featured,
     }
 
     if (body.tiktok_url) {
