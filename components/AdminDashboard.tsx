@@ -1,10 +1,99 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import VideoGrid from './VideoGrid'
 import AdminVideoForm from './AdminVideoForm'
 import type { Video, Sport } from '@/lib/types'
+
+// ── Sortable sport row ──────────────────────────────────────────────────────
+
+interface SortableSportRowProps {
+  sport: Sport
+  description: string
+  togglingId: string | null
+  isDragging: boolean
+  onToggle: (id: string, active: boolean) => void
+  onDescriptionChange: (id: string, value: string) => void
+  onDescriptionBlur: (id: string, value: string) => void
+  onDragStart: (id: string) => void
+  onDragEnter: (id: string) => void
+  onDragEnd: () => void
+}
+
+function SortableSportRow({
+  sport,
+  description,
+  togglingId,
+  isDragging,
+  onToggle,
+  onDescriptionChange,
+  onDescriptionBlur,
+  onDragStart,
+  onDragEnter,
+  onDragEnd,
+}: SortableSportRowProps) {
+  return (
+    <div
+      draggable
+      onDragStart={() => onDragStart(sport.id)}
+      onDragEnter={() => onDragEnter(sport.id)}
+      onDragEnd={onDragEnd}
+      onDragOver={(e) => e.preventDefault()}
+      className={`py-4 last:pb-0 space-y-2 transition-opacity ${isDragging ? 'opacity-40' : ''}`}
+    >
+      {/* Row 1: drag handle + name + toggle */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-2">
+          <span className="text-gray-600 cursor-grab active:cursor-grabbing shrink-0 p-0.5">
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
+              <circle cx="5" cy="4" r="1.5" />
+              <circle cx="5" cy="8" r="1.5" />
+              <circle cx="5" cy="12" r="1.5" />
+              <circle cx="11" cy="4" r="1.5" />
+              <circle cx="11" cy="8" r="1.5" />
+              <circle cx="11" cy="12" r="1.5" />
+            </svg>
+          </span>
+          <div>
+            <span className="text-sm font-medium text-white">{sport.name}</span>
+            <span className="ml-2 text-xs text-gray-500">/{sport.slug}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <span className={`text-xs ${sport.active ? 'text-green-400' : 'text-gray-500'}`}>
+            {sport.active ? 'Visible' : 'Hidden'}
+          </span>
+          <button
+            onClick={() => onToggle(sport.id, !sport.active)}
+            disabled={togglingId === sport.id}
+            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
+              sport.active ? 'bg-purple-600' : 'bg-gray-600'
+            }`}
+            aria-label={`${sport.active ? 'Hide' : 'Show'} ${sport.name} on board`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                sport.active ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
+      </div>
+      {/* Row 2: description input */}
+      <input
+        type="text"
+        value={description}
+        onChange={(e) => onDescriptionChange(sport.id, e.target.value)}
+        onBlur={(e) => onDescriptionBlur(sport.id, e.target.value)}
+        placeholder="Short description shown on the public board (optional)"
+        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition"
+      />
+    </div>
+  )
+}
+
+// ── Main dashboard ──────────────────────────────────────────────────────────
 
 export default function AdminDashboard() {
   const router = useRouter()
@@ -16,9 +105,14 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [togglingId, setTogglingId] = useState<string | null>(null)
-  // Per-sport description drafts: updated as user types, saved on blur
   const [descriptions, setDescriptions] = useState<Record<string, string>>({})
   const [newestDescription, setNewestDescription] = useState('')
+  const [draggingId, setDraggingId] = useState<string | null>(null)
+
+  // Refs to avoid stale closures in drag handlers
+  const draggedIdRef = useRef<string | null>(null)
+  const sportsRef = useRef<Sport[]>(sports)
+  useEffect(() => { sportsRef.current = sports }, [sports])
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -47,6 +141,35 @@ export default function AdminDashboard() {
   useEffect(() => {
     setDescriptions(Object.fromEntries(sports.map((s) => [s.id, s.description ?? ''])))
   }, [sports])
+
+  const handleDragStart = useCallback((id: string) => {
+    draggedIdRef.current = id
+    setDraggingId(id)
+  }, [])
+
+  const handleDragEnter = useCallback((targetId: string) => {
+    const draggedId = draggedIdRef.current
+    if (!draggedId || draggedId === targetId) return
+    setSports((prev) => {
+      const oldIndex = prev.findIndex((s) => s.id === draggedId)
+      const newIndex = prev.findIndex((s) => s.id === targetId)
+      if (oldIndex === -1 || newIndex === -1) return prev
+      const next = [...prev]
+      const [moved] = next.splice(oldIndex, 1)
+      next.splice(newIndex, 0, moved)
+      return next
+    })
+  }, [])
+
+  const handleDragEnd = useCallback(async () => {
+    draggedIdRef.current = null
+    setDraggingId(null)
+    await fetch('/api/sports/reorder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderedIds: sportsRef.current.map((s) => s.id) }),
+    })
+  }, [])
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -323,7 +446,7 @@ export default function AdminDashboard() {
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
               <h2 className="text-base font-semibold text-white mb-4">Manage Sports</h2>
               <div className="divide-y divide-gray-800">
-                {/* Newest — always visible, description only */}
+                {/* Featured — always visible, description only */}
                 <div className="py-4 first:pt-0 space-y-2">
                   <div className="flex items-center justify-between gap-4">
                     <div>
@@ -342,46 +465,22 @@ export default function AdminDashboard() {
                 </div>
 
                 {sports.map((sport) => (
-                    <div key={sport.id} className="py-4 last:pb-0 space-y-2">
-                      {/* Row 1: name + toggle */}
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
-                          <span className="text-sm font-medium text-white">{sport.name}</span>
-                          <span className="ml-2 text-xs text-gray-500">/{sport.slug}</span>
-                        </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <span className={`text-xs ${sport.active ? 'text-green-400' : 'text-gray-500'}`}>
-                            {sport.active ? 'Visible' : 'Hidden'}
-                          </span>
-                          <button
-                            onClick={() => handleToggleSport(sport.id, !sport.active)}
-                            disabled={togglingId === sport.id}
-                            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
-                              sport.active ? 'bg-purple-600' : 'bg-gray-600'
-                            }`}
-                            aria-label={`${sport.active ? 'Hide' : 'Show'} ${sport.name} on board`}
-                          >
-                            <span
-                              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                                sport.active ? 'translate-x-6' : 'translate-x-1'
-                              }`}
-                            />
-                          </button>
-                        </div>
-                      </div>
-                      {/* Row 2: description input */}
-                      <input
-                        type="text"
-                        value={descriptions[sport.id] ?? ''}
-                        onChange={(e) =>
-                          setDescriptions((prev) => ({ ...prev, [sport.id]: e.target.value }))
-                        }
-                        onBlur={(e) => handleSaveDescription(sport.id, e.target.value)}
-                        placeholder="Short description shown on the public board (optional)"
-                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition"
-                      />
-                    </div>
-                  ))}
+                  <SortableSportRow
+                    key={sport.id}
+                    sport={sport}
+                    description={descriptions[sport.id] ?? ''}
+                    togglingId={togglingId}
+                    isDragging={draggingId === sport.id}
+                    onToggle={handleToggleSport}
+                    onDescriptionChange={(id, val) =>
+                      setDescriptions((prev) => ({ ...prev, [id]: val }))
+                    }
+                    onDescriptionBlur={handleSaveDescription}
+                    onDragStart={handleDragStart}
+                    onDragEnter={handleDragEnter}
+                    onDragEnd={handleDragEnd}
+                  />
+                ))}
               </div>
             </div>
           </>

@@ -35,6 +35,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     if (typeof body.active === 'boolean') updates.active = body.active
     if (typeof body.description === 'string') updates.description = body.description
+    if (typeof body.display_order === 'number') updates.display_order = body.display_order
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })

@@ -11,7 +11,7 @@ export default async function BoardPage() {
       .from('videos')
       .select('*, video_sports(display_order, sports(id, name, slug, active, description))')
       .order('created_at', { ascending: false }),
-    supabase.from('sports').select('*').order('name'),
+    supabase.from('sports').select('*').order('display_order', { nullsFirst: false }).order('name'),
   ])
 
   const videos = (rawVideos ?? []).map((v) => ({

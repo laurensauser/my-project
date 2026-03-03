@@ -28,7 +28,7 @@ export default async function SportBoardPage({ params }: PageProps) {
 
   const [{ data: sportData }, { data: activeSports }, { data: vsData }] = await Promise.all([
     supabase.from('sports').select('*').eq('slug', sportSlug).single(),
-    supabase.from('sports').select('*').eq('active', true).order('name'),
+    supabase.from('sports').select('*').eq('active', true).order('display_order', { nullsFirst: false }).order('name'),
     supabase
       .from('video_sports')
       .select('video_id, sports!inner(id)')

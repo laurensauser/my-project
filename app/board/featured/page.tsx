@@ -13,7 +13,7 @@ export default async function FeaturedPage() {
       .eq('include_in_featured', true)
       .order('featured_order', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false }),
-    supabase.from('sports').select('*').eq('active', true).order('name'),
+    supabase.from('sports').select('*').eq('active', true).order('display_order', { nullsFirst: false }).order('name'),
     supabase.from('site_settings').select('newest_description').single(),
   ])
 

@@ -23,6 +23,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from('sports')
     .select('*')
+    .order('display_order', { nullsFirst: false })
     .order('name')
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
