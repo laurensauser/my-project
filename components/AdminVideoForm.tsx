@@ -19,6 +19,7 @@ export default function AdminVideoForm({
   const isEditing = !!video
 
   const [formData, setFormData] = useState({
+    title: video?.title ?? '',
     tiktok_url: video?.tiktok_url ?? '',
     caption: video?.caption ?? '',
     plays: video?.plays?.toString() ?? '0',
@@ -133,6 +134,20 @@ export default function AdminVideoForm({
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          {/* Internal Title */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1.5">
+              Internal Title
+            </label>
+            <input
+              type="text"
+              value={formData.title}
+              onChange={(e) => set('title', e.target.value)}
+              placeholder="e.g. Cesar catcher tip — for your reference only"
+              className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition"
+            />
+          </div>
+
           {/* TikTok URL */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1.5">

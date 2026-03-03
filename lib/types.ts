@@ -9,6 +9,7 @@ export interface Sport {
 
 export interface Video {
   id: string
+  title: string
   tiktok_url: string
   tiktok_id: string
   caption: string
