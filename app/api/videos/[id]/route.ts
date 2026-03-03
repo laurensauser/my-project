@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { jwtVerify } from 'jose'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { extractTikTokVideoId, resolveTikTokUrl } from '@/lib/tiktok'
+import type { Sport } from '@/lib/types'
 
 function getSecret() {
   return new TextEncoder().encode(process.env.JWT_SECRET!)
@@ -22,7 +23,51 @@ interface RouteParams {
   params: Promise<{ id: string }>
 }
 
-// PUT /api/videos/:id — admin only
+// PATCH /api/videos/:id — admin only
+// With sport_id: updates display_order in video_sports
+// Without sport_id: updates newest_order on the video itself
+export async function PATCH(request: NextRequest, { params }: RouteParams) {
+  if (!(await requireAdmin(request))) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const { id } = await params
+
+  try {
+    const body = await request.json()
+
+    const parseOrder = (val: unknown) => {
+      if (val === null || val === undefined || val === '') return null
+      const n = parseInt(String(val))
+      return isNaN(n) ? null : n
+    }
+
+    if (body.sport_id) {
+      // Update per-sport display_order in video_sports
+      const { error } = await supabaseAdmin
+        .from('video_sports')
+        .update({ display_order: parseOrder(body.display_order) })
+        .eq('video_id', id)
+        .eq('sport_id', body.sport_id)
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    } else {
+      // Update newest_order on the video row
+      const { error } = await supabaseAdmin
+        .from('videos')
+        .update({ newest_order: parseOrder(body.newest_order) })
+        .eq('id', id)
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true })
+  } catch {
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+  }
+}
+
+// PUT /api/videos/:id — admin only, full update
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   if (!(await requireAdmin(request))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -82,15 +127,38 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
 
+    // Preserve existing display_orders for sports that remain
+    const { data: existingVS } = await supabaseAdmin
+      .from('video_sports')
+      .select('sport_id, display_order')
+      .eq('video_id', id)
+
+    const existingOrders: Record<string, number | null> = Object.fromEntries(
+      (existingVS ?? []).map((vs: { sport_id: string; display_order: number | null }) => [
+        vs.sport_id,
+        vs.display_order,
+      ])
+    )
+
     await supabaseAdmin.from('video_sports').delete().eq('video_id', id)
 
     const { error: vsErr } = await supabaseAdmin
       .from('video_sports')
-      .insert(sport_ids.map((sport_id: string) => ({ video_id: id, sport_id })))
+      .insert(
+        sport_ids.map((sport_id: string) => ({
+          video_id: id,
+          sport_id,
+          display_order: existingOrders[sport_id] ?? null,
+        }))
+      )
 
     if (vsErr) return NextResponse.json({ error: vsErr.message }, { status: 500 })
 
-    return NextResponse.json({ ...updatedVideo, sports: sportsData })
+    const sport_orders = Object.fromEntries(
+      sport_ids.map((sport_id: string) => [sport_id, existingOrders[sport_id] ?? null])
+    )
+
+    return NextResponse.json({ ...updatedVideo, sports: sportsData, sport_orders })
   } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }

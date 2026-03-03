@@ -93,6 +93,34 @@ export default function AdminDashboard() {
     }
   }
 
+  const handleUpdateOrder = async (videoId: string, sportId: string | null, value: string) => {
+    const order = value === '' ? null : parseInt(value)
+    if (order !== null && (isNaN(order) || order < 1)) return
+    if (sportId) {
+      await fetch(`/api/videos/${videoId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sport_id: sportId, display_order: order }),
+      })
+      setVideos((prev) =>
+        prev.map((v) =>
+          v.id !== videoId
+            ? v
+            : { ...v, sport_orders: { ...v.sport_orders, [sportId]: order } }
+        )
+      )
+    } else {
+      await fetch(`/api/videos/${videoId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newest_order: order }),
+      })
+      setVideos((prev) =>
+        prev.map((v) => (v.id !== videoId ? v : { ...v, newest_order: order }))
+      )
+    }
+  }
+
   const handleSaveNewestDescription = async (value: string) => {
     const res = await fetch('/api/settings', {
       method: 'PATCH',
@@ -119,9 +147,36 @@ export default function AdminDashboard() {
     }
   }
 
-  const filteredVideos = activeSport
-    ? videos.filter((v) => v.sports?.some((s) => s.slug === activeSport))
-    : videos
+  const activeSportObj =
+    activeSport && activeSport !== 'newest'
+      ? sports.find((s) => s.slug === activeSport) ?? null
+      : null
+
+  const filteredVideos = (() => {
+    if (activeSport === 'newest') {
+      const list = videos.filter((v) => !v.exclude_from_newest)
+      return [...list].sort((a, b) => {
+        const aOrder = a.newest_order ?? null
+        const bOrder = b.newest_order ?? null
+        if (aOrder !== null && bOrder !== null) return aOrder - bOrder
+        if (aOrder !== null) return -1
+        if (bOrder !== null) return 1
+        return 0
+      })
+    }
+    const list = activeSport
+      ? videos.filter((v) => v.sports?.some((s) => s.slug === activeSport))
+      : videos
+    if (!activeSportObj) return list
+    return [...list].sort((a, b) => {
+      const aOrder = a.sport_orders?.[activeSportObj.id] ?? null
+      const bOrder = b.sport_orders?.[activeSportObj.id] ?? null
+      if (aOrder !== null && bOrder !== null) return aOrder - bOrder
+      if (aOrder !== null) return -1
+      if (bOrder !== null) return 1
+      return 0
+    })
+  })()
 
   return (
     <div className="min-h-screen bg-gray-950">
@@ -176,6 +231,16 @@ export default function AdminDashboard() {
             >
               All
             </button>
+            <button
+              onClick={() => setActiveSport('newest')}
+              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                activeSport === 'newest'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white'
+              }`}
+            >
+              Newest
+            </button>
             {sports.map((sport) => (
               <button
                 key={sport.slug}
@@ -204,20 +269,52 @@ export default function AdminDashboard() {
             <VideoGrid
               videos={filteredVideos}
               adminControls={(video) => (
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setEditingVideo(video)}
-                    className="flex-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white px-3 py-1.5 rounded-lg transition font-medium"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDelete(video.id)}
-                    disabled={deletingId === video.id}
-                    className="flex-1 text-xs bg-red-950/50 hover:bg-red-900/60 text-red-400 hover:text-red-300 border border-red-900/50 px-3 py-1.5 rounded-lg transition font-medium disabled:opacity-50"
-                  >
-                    {deletingId === video.id ? '...' : 'Delete'}
-                  </button>
+                <div className="flex flex-col gap-2">
+                  {activeSport === 'newest' && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500 shrink-0">Order</span>
+                      <input
+                        key={`${video.id}-newest`}
+                        type="number"
+                        min="1"
+                        defaultValue={video.newest_order ?? ''}
+                        placeholder="—"
+                        onBlur={(e) => handleUpdateOrder(video.id, null, e.target.value)}
+                        className="w-16 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs text-white text-center focus:outline-none focus:border-purple-500 transition [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                      <span className="text-xs text-gray-600">position</span>
+                    </div>
+                  )}
+                  {activeSportObj && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500 shrink-0">Order</span>
+                      <input
+                        key={`${video.id}-${activeSportObj.id}`}
+                        type="number"
+                        min="1"
+                        defaultValue={video.sport_orders?.[activeSportObj.id] ?? ''}
+                        placeholder="—"
+                        onBlur={(e) => handleUpdateOrder(video.id, activeSportObj.id, e.target.value)}
+                        className="w-16 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs text-white text-center focus:outline-none focus:border-purple-500 transition [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                      <span className="text-xs text-gray-600">position</span>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setEditingVideo(video)}
+                      className="flex-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white px-3 py-1.5 rounded-lg transition font-medium"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDelete(video.id)}
+                      disabled={deletingId === video.id}
+                      className="flex-1 text-xs bg-red-950/50 hover:bg-red-900/60 text-red-400 hover:text-red-300 border border-red-900/50 px-3 py-1.5 rounded-lg transition font-medium disabled:opacity-50"
+                    >
+                      {deletingId === video.id ? '...' : 'Delete'}
+                    </button>
+                  </div>
                 </div>
               )}
             />

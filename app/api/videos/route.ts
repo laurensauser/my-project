@@ -23,11 +23,14 @@ async function requireAdmin(request: NextRequest): Promise<boolean> {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function attachSports(raw: any) {
   const { video_sports, ...rest } = raw
+  const vSports = video_sports ?? []
   return {
     ...rest,
-    sports: (video_sports ?? [])
-      .map((vs: { sports: Sport | null }) => vs.sports)
-      .filter(Boolean),
+    sports: vSports.map((vs: { sports: Sport | null }) => vs.sports).filter(Boolean),
+    sport_orders: Object.fromEntries(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      vSports.filter((vs: any) => vs.sports?.id).map((vs: any) => [vs.sports.id, vs.display_order ?? null])
+    ),
   }
 }
 
@@ -58,7 +61,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('videos')
-    .select('*, video_sports(sports(id, name, slug, active, description))')
+    .select('*, video_sports(display_order, sports(id, name, slug, active, description))')
     .order('created_at', { ascending: false })
 
   if (videoIds) query = query.in('id', videoIds)
@@ -131,7 +134,10 @@ export async function POST(request: NextRequest) {
 
     if (vsErr) return NextResponse.json({ error: vsErr.message }, { status: 500 })
 
-    return NextResponse.json({ ...newVideo, sports: sportsData }, { status: 201 })
+    return NextResponse.json(
+      { ...newVideo, sports: sportsData, sport_orders: Object.fromEntries(sportsData.map((s: Sport) => [s.id, null])) },
+      { status: 201 }
+    )
   } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }

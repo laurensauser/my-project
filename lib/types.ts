@@ -13,6 +13,8 @@ export interface Video {
   tiktok_id: string
   caption: string
   sports: Sport[]
+  sport_orders: Record<string, number | null>
+  newest_order: number | null
   exclude_from_newest: boolean
   plays: number
   notes: string

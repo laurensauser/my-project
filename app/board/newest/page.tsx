@@ -9,8 +9,9 @@ export default async function NewestPage() {
   const [{ data: rawVideos }, { data: sports }, { data: settings }] = await Promise.all([
     supabase
       .from('videos')
-      .select('*, video_sports(sports(id, name, slug, active, description))')
+      .select('*, video_sports(display_order, sports(id, name, slug, active, description))')
       .eq('exclude_from_newest', false)
+      .order('newest_order', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false })
       .limit(10),
     supabase.from('sports').select('*').eq('active', true).order('name'),
@@ -21,6 +22,8 @@ export default async function NewestPage() {
     ...v,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     sports: (v.video_sports ?? []).map((vs: any) => vs.sports).filter(Boolean),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    sport_orders: Object.fromEntries((v.video_sports ?? []).filter((vs: any) => vs.sports?.id).map((vs: any) => [vs.sports.id, vs.display_order ?? null])),
   }))
 
   const description = settings?.newest_description ?? ''
@@ -51,7 +54,6 @@ export default async function NewestPage() {
           {description && (
             <p className="text-base text-gray-300 mt-1">{description}</p>
           )}
-          <p className="text-sm text-gray-500 mt-1">The 10 most recently added videos</p>
         </div>
         <VideoGrid videos={videos} />
       </main>
