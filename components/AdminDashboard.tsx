@@ -18,16 +18,22 @@ export default function AdminDashboard() {
   const [togglingId, setTogglingId] = useState<string | null>(null)
   // Per-sport description drafts: updated as user types, saved on blur
   const [descriptions, setDescriptions] = useState<Record<string, string>>({})
+  const [newestDescription, setNewestDescription] = useState('')
 
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const [videosRes, sportsRes] = await Promise.all([
+      const [videosRes, sportsRes, settingsRes] = await Promise.all([
         fetch('/api/videos'),
         fetch('/api/sports'),
+        fetch('/api/settings'),
       ])
       if (videosRes.ok) setVideos(await videosRes.json())
       if (sportsRes.ok) setSports(await sportsRes.json())
+      if (settingsRes.ok) {
+        const s = await settingsRes.json()
+        setNewestDescription(s.newest_description ?? '')
+      }
     } finally {
       setLoading(false)
     }
@@ -84,6 +90,18 @@ export default function AdminDashboard() {
       }
     } finally {
       setTogglingId(null)
+    }
+  }
+
+  const handleSaveNewestDescription = async (value: string) => {
+    const res = await fetch('/api/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ newest_description: value }),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      setNewestDescription(data.newest_description ?? '')
     }
   }
 
@@ -207,12 +225,27 @@ export default function AdminDashboard() {
             {/* Sports management panel */}
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
               <h2 className="text-base font-semibold text-white mb-4">Manage Sports</h2>
-              {sports.length === 0 ? (
-                <p className="text-sm text-gray-500">No sports yet.</p>
-              ) : (
-                <div className="divide-y divide-gray-800">
-                  {sports.map((sport) => (
-                    <div key={sport.id} className="py-4 first:pt-0 last:pb-0 space-y-2">
+              <div className="divide-y divide-gray-800">
+                {/* Newest — always visible, description only */}
+                <div className="py-4 first:pt-0 space-y-2">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <span className="text-sm font-medium text-white">Newest</span>
+                      <span className="ml-2 text-xs text-gray-500">Always visible</span>
+                    </div>
+                  </div>
+                  <input
+                    type="text"
+                    value={newestDescription}
+                    onChange={(e) => setNewestDescription(e.target.value)}
+                    onBlur={(e) => handleSaveNewestDescription(e.target.value)}
+                    placeholder="Short description shown on the Newest tab (optional)"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition"
+                  />
+                </div>
+
+                {sports.map((sport) => (
+                    <div key={sport.id} className="py-4 last:pb-0 space-y-2">
                       {/* Row 1: name + toggle */}
                       <div className="flex items-center justify-between gap-4">
                         <div>
@@ -252,8 +285,7 @@ export default function AdminDashboard() {
                       />
                     </div>
                   ))}
-                </div>
-              )}
+              </div>
             </div>
           </>
         )}

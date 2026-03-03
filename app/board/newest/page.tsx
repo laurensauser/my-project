@@ -6,7 +6,7 @@ import type { Sport } from '@/lib/types'
 export const dynamic = 'force-dynamic'
 
 export default async function NewestPage() {
-  const [{ data: rawVideos }, { data: sports }] = await Promise.all([
+  const [{ data: rawVideos }, { data: sports }, { data: settings }] = await Promise.all([
     supabase
       .from('videos')
       .select('*, video_sports(sports(id, name, slug, active, description))')
@@ -14,6 +14,7 @@ export default async function NewestPage() {
       .order('created_at', { ascending: false })
       .limit(10),
     supabase.from('sports').select('*').eq('active', true).order('name'),
+    supabase.from('site_settings').select('newest_description').single(),
   ])
 
   const videos = (rawVideos ?? []).map((v) => ({
@@ -21,6 +22,8 @@ export default async function NewestPage() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     sports: (v.video_sports ?? []).map((vs: any) => vs.sports).filter(Boolean),
   }))
+
+  const description = settings?.newest_description ?? ''
 
   return (
     <div className="min-h-screen bg-gray-950">
@@ -45,6 +48,9 @@ export default async function NewestPage() {
       <main className="max-w-7xl mx-auto px-4 py-6">
         <div className="mb-6">
           <h2 className="text-2xl font-bold text-white">Newest</h2>
+          {description && (
+            <p className="text-base text-gray-300 mt-1">{description}</p>
+          )}
           <p className="text-sm text-gray-500 mt-1">The 10 most recently added videos</p>
         </div>
         <VideoGrid videos={videos} />
