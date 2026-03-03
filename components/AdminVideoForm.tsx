@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Video, Sport } from '@/lib/types'
 
 interface AdminVideoFormProps {
@@ -32,6 +32,13 @@ export default function AdminVideoForm({
   )
 
   const [localSports, setLocalSports] = useState<Sport[]>(sports)
+
+  // If the form mounted before sports finished loading, sync when they arrive
+  useEffect(() => {
+    if (sports.length > 0 && localSports.length === 0) {
+      setLocalSports(sports)
+    }
+  }, [sports])
   const [showNewSport, setShowNewSport] = useState(false)
   const [newSportName, setNewSportName] = useState('')
   const [creatingSpot, setCreatingSport] = useState(false)

@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { sport_ids, notes, caption, include_in_featured } = body
+    const { sport_ids, notes, caption, title, include_in_featured } = body
     const plays = parseInt(body.plays) || 0
 
     if (!body.tiktok_url || !sport_ids?.length) {
@@ -116,6 +116,7 @@ export async function POST(request: NextRequest) {
       .insert({
         tiktok_url: resolvedUrl,
         tiktok_id,
+        title: title ?? '',
         caption: caption ?? '',
         sport_name: firstSport.name,
         sport_slug: firstSport.slug,

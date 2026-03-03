@@ -77,7 +77,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
   try {
     const body = await request.json()
-    const { caption, sport_ids, notes, include_in_featured } = body
+    const { caption, title, sport_ids, notes, include_in_featured } = body
     const plays = parseInt(body.plays) || 0
 
     if (!sport_ids?.length) {
@@ -97,6 +97,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const updates: Record<string, any> = {
+      title: title ?? '',
       caption: caption ?? '',
       sport_name: firstSport.name,
       sport_slug: firstSport.slug,
