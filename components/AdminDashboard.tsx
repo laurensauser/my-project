@@ -216,33 +216,39 @@ export default function AdminDashboard() {
     }
   }
 
-  const handleUpdateOrder = async (videoId: string, sportId: string | null, value: string) => {
-    const order = value === '' ? null : parseInt(value)
-    if (order !== null && (isNaN(order) || order < 1)) return
-    if (sportId) {
-      await fetch(`/api/videos/${videoId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sport_id: sportId, display_order: order }),
+  const activeSportObj =
+    activeSport && activeSport !== 'featured'
+      ? sports.find((s) => s.slug === activeSport) ?? null
+      : null
+
+  const handleVideoDragEnd = useCallback((reorderedVideos: Video[]) => {
+    if (activeSport === 'featured') {
+      setVideos((prev) => {
+        const orderMap = new Map(reorderedVideos.map((v, i) => [v.id, i + 1]))
+        return prev.map((v) => orderMap.has(v.id) ? { ...v, featured_order: orderMap.get(v.id)! } : v)
       })
-      setVideos((prev) =>
-        prev.map((v) =>
-          v.id !== videoId
-            ? v
-            : { ...v, sport_orders: { ...v.sport_orders, [sportId]: order } }
-        )
-      )
-    } else {
-      await fetch(`/api/videos/${videoId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ featured_order: order }),
+      reorderedVideos.forEach((video, index) => {
+        fetch(`/api/videos/${video.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ featured_order: index + 1 }),
+        })
       })
-      setVideos((prev) =>
-        prev.map((v) => (v.id !== videoId ? v : { ...v, featured_order: order }))
-      )
+    } else if (activeSportObj) {
+      const sportId = activeSportObj.id
+      setVideos((prev) => {
+        const orderMap = new Map(reorderedVideos.map((v, i) => [v.id, i + 1]))
+        return prev.map((v) => orderMap.has(v.id) ? { ...v, sport_orders: { ...v.sport_orders, [sportId]: orderMap.get(v.id)! } } : v)
+      })
+      reorderedVideos.forEach((video, index) => {
+        fetch(`/api/videos/${video.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sport_id: sportId, display_order: index + 1 }),
+        })
+      })
     }
-  }
+  }, [activeSport, activeSportObj])
 
   const handleSaveNewestDescription = async (value: string) => {
     const res = await fetch('/api/settings', {
@@ -269,11 +275,6 @@ export default function AdminDashboard() {
       setSports((prev) => prev.map((s) => (s.id === updated.id ? updated : s)))
     }
   }
-
-  const activeSportObj =
-    activeSport && activeSport !== 'featured'
-      ? sports.find((s) => s.slug === activeSport) ?? null
-      : null
 
   const filteredVideos = (() => {
     if (activeSport === 'featured') {
@@ -391,53 +392,23 @@ export default function AdminDashboard() {
           <>
             <VideoGrid
               videos={filteredVideos}
+              draggable={activeSport === 'featured' || activeSportObj !== null}
+              onDragEnd={handleVideoDragEnd}
               adminControls={(video) => (
-                <div className="flex flex-col gap-2">
-                  {activeSport === 'featured' && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-500 shrink-0">Order</span>
-                      <input
-                        key={`${video.id}-featured`}
-                        type="number"
-                        min="1"
-                        defaultValue={video.featured_order ?? ''}
-                        placeholder="—"
-                        onBlur={(e) => handleUpdateOrder(video.id, null, e.target.value)}
-                        className="w-16 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs text-white text-center focus:outline-none focus:border-purple-500 transition [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      />
-                      <span className="text-xs text-gray-600">position</span>
-                    </div>
-                  )}
-                  {activeSportObj && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-500 shrink-0">Order</span>
-                      <input
-                        key={`${video.id}-${activeSportObj.id}`}
-                        type="number"
-                        min="1"
-                        defaultValue={video.sport_orders?.[activeSportObj.id] ?? ''}
-                        placeholder="—"
-                        onBlur={(e) => handleUpdateOrder(video.id, activeSportObj.id, e.target.value)}
-                        className="w-16 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs text-white text-center focus:outline-none focus:border-purple-500 transition [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      />
-                      <span className="text-xs text-gray-600">position</span>
-                    </div>
-                  )}
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setEditingVideo(video)}
-                      className="flex-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white px-3 py-1.5 rounded-lg transition font-medium"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(video.id)}
-                      disabled={deletingId === video.id}
-                      className="flex-1 text-xs bg-red-950/50 hover:bg-red-900/60 text-red-400 hover:text-red-300 border border-red-900/50 px-3 py-1.5 rounded-lg transition font-medium disabled:opacity-50"
-                    >
-                      {deletingId === video.id ? '...' : 'Delete'}
-                    </button>
-                  </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setEditingVideo(video)}
+                    className="flex-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white px-3 py-1.5 rounded-lg transition font-medium"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDelete(video.id)}
+                    disabled={deletingId === video.id}
+                    className="flex-1 text-xs bg-red-950/50 hover:bg-red-900/60 text-red-400 hover:text-red-300 border border-red-900/50 px-3 py-1.5 rounded-lg transition font-medium disabled:opacity-50"
+                  >
+                    {deletingId === video.id ? '...' : 'Delete'}
+                  </button>
                 </div>
               )}
             />
