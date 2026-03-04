@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import VideoGrid from './VideoGrid'
 import AdminVideoForm from './AdminVideoForm'
@@ -42,7 +42,6 @@ function SortableSportRow({
       onDragOver={(e) => e.preventDefault()}
       className={`py-4 last:pb-0 space-y-2 transition-opacity ${isDragging ? 'opacity-40' : ''}`}
     >
-      {/* Row 1: drag handle + name + toggle */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <span className="text-gray-600 cursor-grab active:cursor-grabbing shrink-0 p-0.5">
@@ -80,7 +79,6 @@ function SortableSportRow({
           </button>
         </div>
       </div>
-      {/* Row 2: description input */}
       <input
         type="text"
         value={description}
@@ -109,10 +107,17 @@ export default function AdminDashboard() {
   const [newestDescription, setNewestDescription] = useState('')
   const [draggingId, setDraggingId] = useState<string | null>(null)
 
+  // Reorder panel state
+  const [reorderList, setReorderList] = useState<Video[]>([])
+  const [reorderDraggingId, setReorderDraggingId] = useState<string | null>(null)
+  const reorderDraggedRef = useRef<string | null>(null)
+  const reorderListRef = useRef<Video[]>([])
+
   // Refs to avoid stale closures in drag handlers
   const draggedIdRef = useRef<string | null>(null)
   const sportsRef = useRef<Sport[]>(sports)
   useEffect(() => { sportsRef.current = sports }, [sports])
+  useEffect(() => { reorderListRef.current = reorderList }, [reorderList])
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -133,14 +138,13 @@ export default function AdminDashboard() {
     }
   }, [])
 
-  useEffect(() => {
-    fetchData()
-  }, [fetchData])
+  useEffect(() => { fetchData() }, [fetchData])
 
-  // Keep description drafts in sync when sports data loads/refreshes
   useEffect(() => {
     setDescriptions(Object.fromEntries(sports.map((s) => [s.id, s.description ?? ''])))
   }, [sports])
+
+  // ── Sports drag handlers ─────────────────────────────────────────────────
 
   const handleDragStart = useCallback((id: string) => {
     draggedIdRef.current = id
@@ -170,6 +174,8 @@ export default function AdminDashboard() {
       body: JSON.stringify({ orderedIds: sportsRef.current.map((s) => s.id) }),
     })
   }, [])
+
+  // ── Misc handlers ────────────────────────────────────────────────────────
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -216,40 +222,6 @@ export default function AdminDashboard() {
     }
   }
 
-  const activeSportObj =
-    activeSport && activeSport !== 'featured'
-      ? sports.find((s) => s.slug === activeSport) ?? null
-      : null
-
-  const handleVideoDragEnd = useCallback((reorderedVideos: Video[]) => {
-    if (activeSport === 'featured') {
-      setVideos((prev) => {
-        const orderMap = new Map(reorderedVideos.map((v, i) => [v.id, i + 1]))
-        return prev.map((v) => orderMap.has(v.id) ? { ...v, featured_order: orderMap.get(v.id)! } : v)
-      })
-      reorderedVideos.forEach((video, index) => {
-        fetch(`/api/videos/${video.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ featured_order: index + 1 }),
-        })
-      })
-    } else if (activeSportObj) {
-      const sportId = activeSportObj.id
-      setVideos((prev) => {
-        const orderMap = new Map(reorderedVideos.map((v, i) => [v.id, i + 1]))
-        return prev.map((v) => orderMap.has(v.id) ? { ...v, sport_orders: { ...v.sport_orders, [sportId]: orderMap.get(v.id)! } } : v)
-      })
-      reorderedVideos.forEach((video, index) => {
-        fetch(`/api/videos/${video.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sport_id: sportId, display_order: index + 1 }),
-        })
-      })
-    }
-  }, [activeSport, activeSportObj])
-
   const handleSaveNewestDescription = async (value: string) => {
     const res = await fetch('/api/settings', {
       method: 'PATCH',
@@ -276,7 +248,14 @@ export default function AdminDashboard() {
     }
   }
 
-  const filteredVideos = (() => {
+  // ── Derived state ────────────────────────────────────────────────────────
+
+  const activeSportObj =
+    activeSport && activeSport !== 'featured'
+      ? sports.find((s) => s.slug === activeSport) ?? null
+      : null
+
+  const filteredVideos = useMemo(() => {
     if (activeSport === 'featured') {
       const list = videos.filter((v) => v.include_in_featured)
       return [...list].sort((a, b) => {
@@ -300,7 +279,77 @@ export default function AdminDashboard() {
       if (bOrder !== null) return 1
       return 0
     })
-  })()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSport, activeSportObj?.id, videos])
+
+  // Sync reorder list whenever tab or videos change (but not mid-drag)
+  useEffect(() => {
+    if (!reorderDraggedRef.current) setReorderList(filteredVideos)
+  }, [filteredVideos])
+
+  // ── Reorder panel drag handlers ──────────────────────────────────────────
+
+  const saveVideoOrder = useCallback((reorderedVideos: Video[]) => {
+    if (activeSport === 'featured') {
+      setVideos((prev) => {
+        const orderMap = new Map(reorderedVideos.map((v, i) => [v.id, i + 1]))
+        return prev.map((v) => orderMap.has(v.id) ? { ...v, featured_order: orderMap.get(v.id)! } : v)
+      })
+      reorderedVideos.forEach((video, index) => {
+        fetch(`/api/videos/${video.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ featured_order: index + 1 }),
+        })
+      })
+    } else if (activeSportObj) {
+      const sportId = activeSportObj.id
+      setVideos((prev) => {
+        const orderMap = new Map(reorderedVideos.map((v, i) => [v.id, i + 1]))
+        return prev.map((v) =>
+          orderMap.has(v.id)
+            ? { ...v, sport_orders: { ...v.sport_orders, [sportId]: orderMap.get(v.id)! } }
+            : v
+        )
+      })
+      reorderedVideos.forEach((video, index) => {
+        fetch(`/api/videos/${video.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sport_id: sportId, display_order: index + 1 }),
+        })
+      })
+    }
+  }, [activeSport, activeSportObj])
+
+  const handleReorderDragStart = useCallback((id: string) => {
+    reorderDraggedRef.current = id
+    setReorderDraggingId(id)
+  }, [])
+
+  const handleReorderDragEnter = useCallback((targetId: string) => {
+    const draggedId = reorderDraggedRef.current
+    if (!draggedId || draggedId === targetId) return
+    setReorderList((prev) => {
+      const oldIndex = prev.findIndex((v) => v.id === draggedId)
+      const newIndex = prev.findIndex((v) => v.id === targetId)
+      if (oldIndex === -1 || newIndex === -1) return prev
+      const next = [...prev]
+      const [moved] = next.splice(oldIndex, 1)
+      next.splice(newIndex, 0, moved)
+      return next
+    })
+  }, [])
+
+  const handleReorderDragEnd = useCallback(() => {
+    reorderDraggedRef.current = null
+    setReorderDraggingId(null)
+    saveVideoOrder(reorderListRef.current)
+  }, [saveVideoOrder])
+
+  const showReorderPanel = activeSport === 'featured' || activeSportObj !== null
+
+  // ── Render ───────────────────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen bg-gray-950">
@@ -392,8 +441,6 @@ export default function AdminDashboard() {
           <>
             <VideoGrid
               videos={filteredVideos}
-              draggable={activeSport === 'featured' || activeSportObj !== null}
-              onDragEnd={handleVideoDragEnd}
               adminControls={(video) => (
                 <div className="flex gap-2">
                   <button
@@ -412,6 +459,42 @@ export default function AdminDashboard() {
                 </div>
               )}
             />
+
+            {/* Reorder panel — shown on Featured and sport tabs */}
+            {showReorderPanel && reorderList.length > 0 && (
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+                <h2 className="text-base font-semibold text-white mb-1">Reorder Videos</h2>
+                <p className="text-xs text-gray-500 mb-4">Drag to set display order</p>
+                <div className="space-y-1">
+                  {reorderList.map((video) => {
+                    const label = video.title || video.caption?.slice(0, 50) || 'Untitled'
+                    return (
+                      <div
+                        key={video.id}
+                        draggable
+                        onDragStart={() => handleReorderDragStart(video.id)}
+                        onDragEnter={() => handleReorderDragEnter(video.id)}
+                        onDragEnd={handleReorderDragEnd}
+                        onDragOver={(e) => e.preventDefault()}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl bg-gray-800 cursor-grab active:cursor-grabbing select-none transition-opacity ${
+                          reorderDraggingId === video.id ? 'opacity-40' : ''
+                        }`}
+                      >
+                        <svg className="w-4 h-4 text-gray-500 shrink-0" fill="currentColor" viewBox="0 0 16 16">
+                          <circle cx="5" cy="4" r="1.5" />
+                          <circle cx="5" cy="8" r="1.5" />
+                          <circle cx="5" cy="12" r="1.5" />
+                          <circle cx="11" cy="4" r="1.5" />
+                          <circle cx="11" cy="8" r="1.5" />
+                          <circle cx="11" cy="12" r="1.5" />
+                        </svg>
+                        <span className="text-sm text-gray-200 truncate">{label}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Sports management panel */}
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
